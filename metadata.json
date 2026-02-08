@@ -1,0 +1,5 @@
+{
+  "name": "IdeaToRepo",
+  "description": "Transform natural language ideas into technical GitHub search queries to find relevant repositories.",
+  "requestFramePermissions": []
+}
