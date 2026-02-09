@@ -1192,17 +1192,76 @@ CRITICAL: Return ONLY valid JSON matching this EXACT structure (no markdown, no 
 {
   "projectName": "string",
   "description": "string",
-  "techStack": { "framework": "string", "language": "string", "styling": "string", "icons": "string", "stateManagement": "string", "dataFetching": "string", "routing": "string" },
-  "folderStructure": [{ "name": "string", "type": "folder|file", "purpose": "string", "children": [{ "name": "string", "type": "file" }] }],
-  "pages": [{ "name": "string", "route": "string", "description": "string", "imports": ["string"], "isProtected": boolean, "lazyLoad": boolean }],
-  "components": [{ "name": "string", "description": "string", "isAtomic": boolean, "category": "layout|form|display|navigation|feedback|utility", "props": [{"name": "string", "type": "string", "required": boolean}] }],
-  "databaseSchema": [{ "table": "string", "columns": [{"name": "string", "type": "string", "isPrimary": boolean, "isRequired": boolean}], "relationships": ["string"] }],
-  "apiEndpoints": [{ "path": "string", "method": "GET|POST|PUT|DELETE", "purpose": "string", "authentication": boolean, "requestSchema": {}, "responseSchema": {} }],
-  "stateManagement": { "approach": "string", "globalStores": [{"name": "string", "purpose": "string", "stateShape": "string"}], "localStateComponents": ["string"], "rationale": "string" },
-  "authentication": { "provider": "string", "flows": ["string"], "protectedRoutes": ["string"], "publicRoutes": ["string"] },
-  "performance": { "codeSplitting": boolean, "lazyLoading": {}, "caching": {}, "imageOptimization": boolean, "bundleOptimization": ["string"] },
-  "dataFlow": { "pattern": "string", "layers": {}, "communicationFlow": "string" },
-  "componentGraph": { "nodes": [{"id": "string", "type": "string"}], "edges": [{"from": "string", "to": "string", "relationship": "string"}] }
+  "techStack": {
+    "framework": "string",
+    "language": "string",
+    "styling": "string",
+    "icons": "string",
+    "stateManagement": "string",
+    "dataFetching": "string",
+    "routing": "string"
+  },
+  "folderStructure": [
+    {
+      "name": "string",
+      "type": "folder|file",
+      "purpose": "string",
+      "children": [{ "name": "string", "type": "file" }]
+    }
+  ],
+  "pages": [
+    { "name": "string", "route": "string", "description": "string", "imports": ["string"], "isProtected": boolean, "lazyLoad": boolean }
+  ],
+  "components": [
+    { "name": "string", "description": "string", "isAtomic": boolean, "category": "layout|form|display|navigation|feedback|utility", "props": [{ "name": "string", "type": "string", "required": boolean }] }
+  ],
+  "databaseSchema": [
+    {
+      "table": "string",
+      "columns": [{ "name": "string", "type": "string", "isPrimary": boolean, "isRequired": boolean }],
+      "relationships": [{ "type": "one-to-many|many-to-one|many-to-many", "table": "string", "foreignKey": "string" }]
+    }
+  ],
+  "apiEndpoints": [
+    {
+      "path": "string",
+      "method": "GET|POST|PUT|PATCH|DELETE",
+      "purpose": "string",
+      "authentication": boolean,
+      "requestSchema": { "body": ["string"], "params": ["string"], "query": ["string"] },
+      "responseSchema": { "success": "string", "error": "string" }
+    }
+  ],
+  "stateManagement": {
+    "approach": "string",
+    "globalStores": [{ "name": "string", "purpose": "string", "stateShape": ["string"] }],
+    "localStateComponents": ["string"],
+    "rationale": "string"
+  },
+  "authentication": {
+    "provider": "string",
+    "flows": ["string"],
+    "protectedRoutes": ["string"],
+    "publicRoutes": ["string"],
+    "tokenStorage": "httpOnly-cookie|localStorage|sessionStorage|memory",
+    "sessionDuration": "string"
+  },
+  "performance": {
+    "codeSplitting": boolean,
+    "lazyLoading": { "routes": ["string"], "components": ["string"] },
+    "caching": { "strategy": "React Query|SWR|RTK Query|Manual|None", "cachedEndpoints": ["string"], "staleTime": "string", "cacheTime": "string" },
+    "imageOptimization": boolean,
+    "bundleOptimization": ["string"]
+  },
+  "dataFlow": {
+    "pattern": "Unidirectional|Bidirectional|Event-driven",
+    "layers": { "presentation": ["string"], "business": ["string"], "data": ["string"] },
+    "communicationFlow": "string"
+  },
+  "componentGraph": {
+    "nodes": [{ "id": "string", "name": "string", "type": "page|layout|component|utility|hook|context" }],
+    "edges": [{ "from": "string", "to": "string", "relationship": "imports|renders|wraps|consumes|provides" }]
+  }
 }`,
       config: {
         responseMimeType: "application/json",
@@ -1464,126 +1523,6 @@ app.post('/api/scaffold', async (req, res) => {
     res.json(data);
   } catch (error) {
     log('ERROR', 'Scaffold AI Failed', { error: error.message });
-    res.status(500).json({ error: 'AI Generation Failed' });
-  }
-});
-
-// -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
-// PHASE 3: ENHANCED ARCHITECTURE SYNTHESIS
-// -----------------------------------------------------------------------------
-
-app.post('/api/enhanced-architecture', async (req, res) => {
-  if (!ai) return res.status(503).json({ error: 'AI Service Unavailable' });
-
-  const { idea, intentAnalysis, deepPatterns, basicAnalysis } = req.body;
-
-  if (!idea) {
-    return res.status(400).json({ error: 'User idea required' });
-  }
-
-  log('INFO', 'Enhanced Architecture Request', { idea });
-
-  // Create comprehensive cache key
-  const contextHash = JSON.stringify({
-    idea,
-    intent: intentAnalysis?.classification?.primaryType,
-    patterns: deepPatterns?.synthesis?.idealStack
-  });
-  const cacheKey = `ENHANCED_ARCH:${Buffer.from(contextHash).toString('base64').slice(0, 50)}`;
-  const cachedData = getFromCache(cacheKey);
-  if (cachedData) {
-    res.set('X-Cache', 'HIT');
-    return res.json(cachedData);
-  }
-
-  const model = "gemini-2.0-flash";
-
-  try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: ENHANCED_ARCHITECTURE_PROMPT(idea, intentAnalysis, deepPatterns, basicAnalysis) + `
-
-CRITICAL: Return ONLY valid JSON matching this EXACT structure (no markdown, no code fences). Do not include any explanations, only the JSON:
-{
-  "projectName": "string",
-  "description": "string",
-  "techStack": {
-    "framework": "string",
-    "language": "string",
-    "styling": "string",
-    "icons": "string",
-    "stateManagement": "string",
-    "dataFetching": "string",
-    "routing": "string"
-  },
-  "folderStructure": [
-    {
-      "name": "string",
-      "type": "folder|file",
-      "purpose": "string",
-      "children": [
-        { "name": "string", "type": "file" }
-      ]
-    }
-  ],
-  "pages": [
-    { "name": "string", "route": "string", "description": "string", "imports": ["string"], "isProtected": boolean, "lazyLoad": boolean }
-  ],
-  "components": [
-    { "name": "string", "description": "string", "isAtomic": boolean, "category": "layout|form|display|navigation|feedback|utility", "props": [{"name": "string", "type": "string", "required": boolean}] }
-  ],
-  "databaseSchema": [
-    { "table": "string", "columns": [{"name": "string", "type": "string", "isPrimary": boolean, "isRequired": boolean}], "relationships": ["string"] }
-  ],
-  "apiEndpoints": [
-    { "path": "string", "method": "GET|POST|PUT|DELETE", "purpose": "string", "authentication": boolean, "requestSchema": {}, "responseSchema": {} }
-  ],
-  "stateManagement": {
-    "approach": "string",
-    "globalStores": [{"name": "string", "purpose": "string", "stateShape": "string"}],
-    "localStateComponents": ["string"],
-    "rationale": "string"
-  },
-  "authentication": {
-    "provider": "string",
-    "flows": ["string"],
-    "protectedRoutes": ["string"],
-    "publicRoutes": ["string"]
-  },
-  "performance": {
-    "codeSplitting": boolean,
-    "lazyLoading": {},
-    "caching": {},
-    "imageOptimization": boolean,
-    "bundleOptimization": ["string"]
-  },
-  "dataFlow": {
-    "pattern": "string",
-    "layers": {},
-    "communicationFlow": "string"
-  },
-  "componentGraph": {
-    "nodes": [{"id": "string", "type": "string"}],
-    "edges": [{"from": "string", "to": "string", "relationship": "string"}]
-  }
-}`,
-      config: {
-        responseMimeType: "application/json"
-      }
-    });
-
-    const text = stripFences(response.text || "{}");
-    const result = JSON.parse(text);
-
-    setInCache(cacheKey, result);
-    res.set('X-Cache', 'MISS');
-    res.json(result);
-
-  } catch (error) {
-    log('ERROR', 'Enhanced Architecture Failed', { error: error.message });
-    console.error('Enhanced Architecture Error:', error);
     res.status(500).json({ error: 'AI Generation Failed' });
   }
 });
