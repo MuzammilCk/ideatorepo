@@ -27,6 +27,11 @@ const App: React.FC = () => {
   const [isScaffolding, setIsScaffolding] = useState<boolean>(false);
   const [scaffoldData, setScaffoldData] = useState<ScaffoldData | null>(null); // Legacy
   const [generatedProject, setGeneratedProject] = useState<GeneratedProject | null>(null); // New Phase 3
+  const [generationProgress, setGenerationProgress] = useState<{
+    phase: string;
+    current: number;
+    total: number;
+  }>({ phase: '', current: 0, total: 0 });
 
   // Phase 1: Intent Analysis State
   const [intentAnalysis, setIntentAnalysis] = useState<IntentAnalysis | null>(null);
@@ -55,6 +60,7 @@ const App: React.FC = () => {
     setArchitecture(null);
     setScaffoldData(null);
     setGeneratedProject(null);
+    setGenerationProgress({ phase: '', current: 0, total: 0 });
     setShowIntentReview(false);
 
     try {
@@ -232,9 +238,27 @@ const App: React.FC = () => {
 
     setIsScaffolding(true);
     try {
-      console.log(">> INITIATING PROJECT CONFIGURATION (PHASE 3)...");
+      console.log(">> INITIATING ENHANCED PROJECT GENERATION...");
+
+      const estimatedFiles = 10
+        + (architecture.pages?.length || 0)
+        + (architecture.components?.length || 0)
+        + (architecture.stateManagement?.globalStores?.length || 0)
+        + 5;
+
+      setGenerationProgress({
+        phase: 'Initializing',
+        current: 0,
+        total: estimatedFiles
+      });
+
       const project = await generateProjectConfig(architecture);
       setGeneratedProject(project);
+      setGenerationProgress({
+        phase: 'Complete',
+        current: estimatedFiles,
+        total: estimatedFiles
+      });
       console.log(">> CONFIG GENERATED:", project);
     } catch (e) {
       console.error("Scaffolding failed:", e);
@@ -403,6 +427,7 @@ const App: React.FC = () => {
               scaffoldData={scaffoldData}
               generatedProject={generatedProject}
               architecture={architecture}
+              generationProgress={generationProgress}
               onGenerateScaffold={handleGenerateScaffold}
             />
           </div>

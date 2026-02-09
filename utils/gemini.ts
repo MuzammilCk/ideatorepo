@@ -1,4 +1,4 @@
-import { Repository, MVPAnalysis, ScaffoldData, ProjectArchitecture, GeneratedProject, DeepPatternAnalysis, IntentAnalysis, EnhancedArchitecture } from "../types";
+import { Repository, MVPAnalysis, ScaffoldData, ProjectArchitecture, GeneratedProject, DeepPatternAnalysis, IntentAnalysis, EnhancedArchitecture, EnhancedGeneratedProject } from "../types";
 
 // Helper to handle API responses
 async function postToApi(endpoint: string, body: any) {
@@ -253,15 +253,29 @@ export async function generateArchitecture(
 }
 
 /**
+ * Phase 4: Enhanced Project Code Generation
+ * Generates ALL project files with tiered batching
+ */
+export async function generateEnhancedProject(
+  architecture: EnhancedArchitecture
+): Promise<EnhancedGeneratedProject> {
+  try {
+    const data = await postToApi('/api/generate-project-enhanced', {
+      architecture
+    });
+    return data;
+  } catch (error: any) {
+    console.error("Enhanced Project Generation Failed:", error);
+    throw error;
+  }
+}
+
+/**
  * Phase 3: Project Configuration Generation
- * Proxies to backend /api/generate-project
+ * Proxies to backend /api/generate-project-enhanced
  */
 export async function generateProjectConfig(architecture: ProjectArchitecture): Promise<GeneratedProject> {
-  try {
-    return await postToApi('/api/generate-project', { architecture });
-  } catch (error: any) {
-    console.error("Project Config Generation Failed:", error);
-  }
+  return generateEnhancedProject(architecture as EnhancedArchitecture);
 }
 
 /**

@@ -40,6 +40,22 @@ export interface GeneratedProject {
   startCommand: string;
 }
 
+export interface GeneratedFile {
+  path: string;
+  content: string;
+}
+
+export interface GenerationLog {
+  phase: string;
+  count: number;
+  status: 'complete' | 'failed' | 'partial';
+}
+
+export interface EnhancedGeneratedProject extends GeneratedProject {
+  files: GeneratedFile[];
+  generationLog: GenerationLog[];
+}
+
 // ProjectArchitecture is now defined as EnhancedArchitecture (see end of file)
 
 export interface TreeNode {

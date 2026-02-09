@@ -676,6 +676,952 @@ async function generateAppRouter(pages, arch) {
 }
 
 // -----------------------------------------------------------------------------
+// PHASE 4: ENHANCED CODE GENERATION WITH TIERED BATCHING
+// -----------------------------------------------------------------------------
+
+// Helper: Chunk array into smaller batches
+function chunkArray(array, size) {
+  const chunks = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}
+
+// 4.1: TIERED GENERATION STRATEGY
+function prioritizeFiles(architecture) {
+  const files = {
+    critical: [],    // Infrastructure: App, main, types, API client
+    core: [],        // Pages and key components
+    supporting: [],  // Utility components, hooks, contexts
+    config: []       // Config files, README, env
+  };
+
+  // CRITICAL: Infrastructure (must work for app to run)
+  files.critical.push(
+    { type: 'main', name: 'src/main.tsx', priority: 1 },
+    { type: 'app', name: 'src/App.tsx', priority: 1 },
+    { type: 'types', name: 'src/types/index.ts', priority: 1 },
+    { type: 'api-client', name: 'src/lib/api.ts', priority: 1 },
+    { type: 'styles', name: 'src/index.css', priority: 1 }
+  );
+
+  // Add auth context if authentication is enabled
+  if (architecture.authentication.provider !== 'None') {
+    files.critical.push(
+      { type: 'auth-context', name: 'src/contexts/AuthContext.tsx', priority: 1 }
+    );
+  }
+
+  // Add state stores based on strategy
+  if (architecture.stateManagement.approach !== 'Context API') {
+    architecture.stateManagement.globalStores.forEach(store => {
+      files.critical.push({
+        type: 'store',
+        name: `src/stores/${store.name}.ts`,
+        priority: 1,
+        metadata: store
+      });
+    });
+  }
+
+  // CORE: Pages (main user-facing routes)
+  architecture.pages.forEach(page => {
+    files.core.push({
+      type: 'page',
+      name: `src/pages/${page.name}.tsx`,
+      priority: 2,
+      metadata: page
+    });
+  });
+
+  // SUPPORTING: Components
+  architecture.components.forEach(component => {
+    const priority = component.isAtomic ? 3 : 2; // Atomic components lower priority
+    files.supporting.push({
+      type: 'component',
+      name: `src/components/${component.name}.tsx`,
+      priority,
+      metadata: component
+    });
+  });
+
+  // Add custom hooks
+  files.supporting.push(
+    { type: 'hook', name: 'src/hooks/useLocalStorage.ts', priority: 3 },
+    { type: 'hook', name: 'src/hooks/useDebounce.ts', priority: 3 }
+  );
+
+  // Add utilities
+  files.supporting.push(
+    { type: 'utils', name: 'src/lib/utils.ts', priority: 3 },
+    { type: 'utils', name: 'src/lib/constants.ts', priority: 3 }
+  );
+
+  // CONFIG: Configuration and documentation
+  files.config.push(
+    { type: 'readme', name: 'README.md', priority: 4 },
+    { type: 'env', name: '.env.example', priority: 4 },
+    { type: 'gitignore', name: '.gitignore', priority: 4 }
+  );
+
+  // Database migrations if using Supabase
+  if (architecture.authentication.provider === 'Supabase') {
+    files.config.push({
+      type: 'migration',
+      name: 'supabase/migrations/001_initial_schema.sql',
+      priority: 4
+    });
+  }
+
+  return files;
+}
+
+// 4.2: CONTEXT-AWARE FILE GENERATOR
+async function generateFile(fileSpec, architecture) {
+  const { type, name, metadata } = fileSpec;
+
+  log('INFO', `Generating ${type}: ${name}`);
+
+  try {
+    let content = '';
+
+    switch (type) {
+      case 'main':
+        content = await generateMainFile(architecture);
+        break;
+      case 'app':
+        content = await generateAppFile(architecture);
+        break;
+      case 'types':
+        content = await generateTypesFile(architecture);
+        break;
+      case 'api-client':
+        content = await generateAPIClient(architecture);
+        break;
+      case 'auth-context':
+        content = await generateAuthContext(architecture);
+        break;
+      case 'store':
+        content = await generateStore(metadata, architecture);
+        break;
+      case 'page':
+        content = await generatePage(metadata, architecture);
+        break;
+      case 'component':
+        content = await generateComponent(metadata, architecture);
+        break;
+      case 'hook':
+        content = generateHook(name);
+        break;
+      case 'utils':
+        content = generateUtils(name);
+        break;
+      case 'styles':
+        content = generateStyles();
+        break;
+      case 'readme':
+        content = generateReadme(architecture);
+        break;
+      case 'env':
+        content = generateEnvTemplate(architecture);
+        break;
+      case 'gitignore':
+        content = generateGitIgnore();
+        break;
+      case 'migration':
+        content = generateMigration(architecture);
+        break;
+      default:
+        content = `// ${name} - Generation not implemented`;
+    }
+
+    return { path: name, content };
+
+  } catch (error) {
+    log('WARN', `Failed to generate ${name}`, { error: error.message });
+    return {
+      path: name,
+      content: `// Generation failed for ${name}\n// Error: ${error.message}\nexport default function Placeholder() { return <div>Placeholder</div> }`
+    };
+  }
+}
+
+// 4.3: STATIC FILE GENERATORS (No AI needed)
+function generateStaticFiles(architecture) {
+  return [
+    { path: 'package.json', content: generatePackageJson(architecture) },
+    { path: 'vite.config.ts', content: generateViteConfig() },
+    { path: 'tsconfig.json', content: generateTsConfig() },
+    { path: 'tsconfig.node.json', content: generateTsConfigNode() },
+    { path: 'tailwind.config.js', content: generateTailwindConfig() },
+    { path: 'postcss.config.js', content: generatePostCssConfig() },
+    { path: 'index.html', content: generateIndexHtml(architecture) },
+    { path: '.gitignore', content: generateGitIgnore() },
+    { path: '.env.example', content: generateEnvTemplate(architecture) },
+    { path: 'README.md', content: generateReadme(architecture) }
+  ];
+}
+
+// Extract dependencies from architecture
+function extractDependencies(architecture) {
+  const deps = {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.3",
+    "lucide-react": "^0.344.0",
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.2.1"
+  };
+
+  // Add state management
+  if (architecture.stateManagement.approach === 'Zustand') {
+    deps.zustand = "^4.5.0";
+  } else if (architecture.stateManagement.approach === 'Redux Toolkit') {
+    deps['@reduxjs/toolkit'] = "^2.0.0";
+    deps['react-redux'] = "^9.0.0";
+  } else if (architecture.stateManagement.approach === 'Jotai') {
+    deps.jotai = "^2.6.0";
+  }
+
+  // Add data fetching
+  if (architecture.performance.caching.strategy === 'React Query') {
+    deps['@tanstack/react-query'] = "^5.17.0";
+  } else if (architecture.performance.caching.strategy === 'SWR') {
+    deps.swr = "^2.2.4";
+  }
+
+  // Add authentication provider
+  if (architecture.authentication.provider === 'Supabase') {
+    deps['@supabase/supabase-js'] = "^2.39.7";
+  } else if (architecture.authentication.provider === 'Firebase') {
+    deps.firebase = "^10.7.2";
+  } else if (architecture.authentication.provider === 'Clerk') {
+    deps['@clerk/clerk-react'] = "^4.30.0";
+  }
+
+  return deps;
+}
+
+// -----------------------------------------------------------------------------
+// PHASE 4.2: CONTEXT-AWARE AI CODE GENERATORS
+// -----------------------------------------------------------------------------
+
+// Main Entry Point
+async function generateMainFile(architecture) {
+  if (!ai) {
+    return `import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);`;
+  }
+
+  const prompt = `Generate src/main.tsx for a React + TypeScript project.
+
+REQUIREMENTS:
+1. Import React, ReactDOM
+2. Import App from './App'
+3. Import './index.css'
+4. ${architecture.performance.caching.strategy === 'React Query' ? 'Wrap with QueryClientProvider' : ''}
+5. ${architecture.authentication.provider === 'Clerk' ? 'Wrap with ClerkProvider' : ''}
+6. Use React.StrictMode
+7. Render to #root element
+
+Return ONLY the code. No markdown, no explanations.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash-exp",
+    contents: prompt
+  });
+
+  return stripFences(response.text);
+}
+
+// App Router
+async function generateAppFile(architecture) {
+  if (!ai) {
+    return `export default function App() { return <div>App</div> }`;
+  }
+
+  const pages = architecture.pages.map(p => ({
+    name: p.name,
+    route: p.route,
+    isProtected: p.isProtected,
+    lazyLoad: p.lazyLoad
+  }));
+
+  const prompt = `Generate src/App.tsx for: ${architecture.projectName}
+
+CONTEXT:
+- Authentication: ${architecture.authentication.provider}
+- Protected Routes: ${architecture.authentication.protectedRoutes.join(', ')}
+- Pages: ${JSON.stringify(pages)}
+
+REQUIREMENTS:
+1. Import BrowserRouter, Routes, Route from 'react-router-dom'
+2. Import all pages: ${pages.map(p => `import ${p.name} from './pages/${p.name}'`).join('; ')}
+3. ${architecture.authentication.provider !== 'None' ? 'Create ProtectedRoute component for auth' : ''}
+4. ${pages.some(p => p.lazyLoad) ? 'Use React.lazy() for heavy pages' : ''}
+5. Add Suspense fallback for lazy routes
+6. Return Router with all routes
+
+STRUCTURE:
+\`\`\`tsx
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+${pages.some(p => p.lazyLoad) ? "import { Suspense, lazy } from 'react';" : ''}
+// ... page imports
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        {/* Add all routes */}
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+\`\`\`
+
+Return ONLY the complete code. No markdown fences.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash-exp",
+    contents: prompt
+  });
+
+  return stripFences(response.text);
+}
+
+// Global Types
+async function generateTypesFile(architecture) {
+  if (!ai) {
+    return `export interface ApiResponse<T> { data: T; error?: string; }\nexport interface PaginatedResponse<T> { data: T[]; total: number; }`;
+  }
+
+  const tables = architecture.databaseSchema.map(t => t.table);
+
+  const prompt = `Generate src/types/index.ts for: ${architecture.projectName}
+
+DATABASE TABLES: ${tables.join(', ')}
+
+REQUIREMENTS:
+1. Create TypeScript interfaces for each database table
+2. Include all columns from schema: ${JSON.stringify(architecture.databaseSchema)}
+3. Add common utility types: ApiResponse<T>, PaginatedResponse<T>
+4. Add auth types: User, Session, AuthState
+5. Export all types
+
+EXAMPLE:
+\`\`\`typescript
+export interface User {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
+export interface ApiResponse<T> {
+  data: T;
+  error?: string;
+}
+\`\`\`
+
+Return ONLY the code.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash-exp",
+    contents: prompt
+  });
+
+  return stripFences(response.text);
+}
+
+// API Client
+async function generateAPIClient(architecture) {
+  if (!ai) {
+    return `const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';\n\nexport async function apiRequest(endpoint, options = {}) {\n  const res = await fetch(\`\${API_URL}\${endpoint}\`, options);\n  if (!res.ok) throw new Error('Request failed');\n  return res.json();\n}\n`;
+  }
+
+  const endpoints = architecture.apiEndpoints.slice(0, 10); // Limit to prevent token overflow
+
+  const prompt = `Generate src/lib/api.ts - API client for: ${architecture.projectName}
+
+API ENDPOINTS:
+${JSON.stringify(endpoints, null, 2)}
+
+AUTH: ${architecture.authentication.provider}
+TOKEN STORAGE: ${architecture.authentication.tokenStorage}
+
+REQUIREMENTS:
+1. Create base API URL constant
+2. Create fetch wrapper with auth headers
+3. Create typed functions for each endpoint
+4. Handle errors gracefully
+5. Include token refresh logic if using JWT
+6. Export all API functions
+
+EXAMPLE STRUCTURE:
+\`\`\`typescript
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  // Add auth headers
+  // Make request
+  // Handle errors
+}
+
+export const api = {
+  users: {
+    getAll: () => apiRequest<User[]>('/api/users'),
+    getById: (id: string) => apiRequest<User>(\`/api/users/\${id}\`)
+  }
+};
+\`\`\`
+
+Return ONLY the code.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash-exp",
+    contents: prompt
+  });
+
+  return stripFences(response.text);
+}
+
+// Auth Context
+async function generateAuthContext(architecture) {
+  if (!ai) {
+    return `import { createContext, useContext } from 'react';\n\nconst AuthContext = createContext(null);\n\nexport function AuthProvider({ children }) {\n  return <AuthContext.Provider value={{}}>{children}</AuthContext.Provider>;\n}\n\nexport function useAuth() {\n  const context = useContext(AuthContext);\n  if (!context) throw new Error('useAuth must be used within AuthProvider');\n  return context;\n}\n`;
+  }
+
+  const provider = architecture.authentication.provider;
+  const flows = architecture.authentication.flows;
+
+  const prompt = `Generate src/contexts/AuthContext.tsx
+
+PROVIDER: ${provider}
+FLOWS: ${flows.join(', ')}
+TOKEN STORAGE: ${architecture.authentication.tokenStorage}
+
+REQUIREMENTS:
+1. Create AuthContext with React.createContext
+2. Create AuthProvider component
+3. Implement functions: ${flows.includes('email-password') ? 'login, signup, logout' : ''}
+4. ${provider === 'Supabase' ? 'Use @supabase/supabase-js' : ''}
+5. ${provider === 'Firebase' ? 'Use firebase/auth' : ''}
+6. Store user state, loading state, error state
+7. Create useAuth hook
+8. Export AuthProvider and useAuth
+
+STRUCTURE:
+\`\`\`typescript
+import { createContext, useContext, useState } from 'react';
+
+interface AuthContextType {
+  user: User | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  isLoading: boolean;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // Implementation
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
+}
+\`\`\`
+
+Return ONLY the code.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash-exp",
+    contents: prompt
+  });
+
+  return stripFences(response.text);
+}
+
+// State Store (Zustand example)
+async function generateStore(storeMetadata, architecture) {
+  if (!ai) {
+    return `export const use${storeMetadata.name.replace('Store', '')}Store = () => ({})`;
+  }
+
+  const prompt = `Generate ${storeMetadata.name}.ts for Zustand store
+
+STORE PURPOSE: ${storeMetadata.purpose}
+STATE SHAPE: ${storeMetadata.stateShape.join(', ')}
+
+REQUIREMENTS:
+1. Import { create } from 'zustand'
+2. Define TypeScript interface for state
+3. Create store with create<T>()
+4. Include actions (getters/setters)
+5. Add persist middleware if needed
+6. Export useStore hook
+
+EXAMPLE:
+\`\`\`typescript
+import { create } from 'zustand';
+
+interface ${storeMetadata.name.replace('Store', '')}State {
+  ${storeMetadata.stateShape.map(s => `${s}: any;`).join('\n  ')}
+}
+
+export const use${storeMetadata.name.replace('Store', '')}Store = create<${storeMetadata.name.replace('Store', '')}State>((set) => ({
+  // Initial state
+  // Actions
+}));
+\`\`\`
+
+Return ONLY the code.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash-exp",
+    contents: prompt
+  });
+
+  return stripFences(response.text);
+}
+
+// Page Component
+async function generatePage(pageMetadata, architecture) {
+  if (!ai) {
+    return `export default function ${pageMetadata.name}() { return <div>${pageMetadata.name}</div>; }`;
+  }
+
+  const availableComponents = architecture.components.map(c => c.name);
+
+  const prompt = `Generate src/pages/${pageMetadata.name}.tsx
+
+PAGE CONTEXT:
+- Route: ${pageMetadata.route}
+- Description: ${pageMetadata.description}
+- Protected: ${pageMetadata.isProtected}
+- Imports: ${pageMetadata.imports.join(', ')}
+
+PROJECT CONTEXT:
+- Auth: ${architecture.authentication.provider}
+- State: ${architecture.stateManagement.approach}
+- Available Components: ${availableComponents.join(', ')}
+
+REQUIREMENTS:
+1. Import React, necessary hooks
+2. ${pageMetadata.isProtected ? 'Use useAuth hook to check authentication' : ''}
+3. Import components: ${pageMetadata.imports.join(', ')}
+4. Use Tailwind CSS for styling
+5. Use lucide-react for icons
+6. Add loading state, error handling
+7. Make responsive (mobile-first)
+8. Add ARIA labels for accessibility
+9. Return functional component
+10. Export as default
+
+STRUCTURE:
+\`\`\`typescript
+import { useState, useEffect } from 'react';
+${pageMetadata.imports.map(imp => `import ${imp} from '../components/${imp}';`).join('\n')}
+
+export default function ${pageMetadata.name}() {
+  const [isLoading, setIsLoading] = useState(true);
+  
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-6">{/* Title */}</h1>
+      {/* Content */}
+    </div>
+  );
+}
+\`\`\`
+
+Return ONLY production-ready code. No markdown, no explanations.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash-exp",
+    contents: prompt
+  });
+
+  return stripFences(response.text);
+}
+
+// Component Generator
+async function generateComponent(componentMetadata, architecture) {
+  if (!ai) {
+    return `export function ${componentMetadata.name}() { return <div>${componentMetadata.name}</div>; }`;
+  }
+
+  const propsInfo = componentMetadata.props?.map(p => `${p.name}: ${p.type}${p.required ? '' : '?'}`).join('; ') || 'No props';
+
+  const prompt = `Generate src/components/${componentMetadata.name}.tsx
+
+COMPONENT CONTEXT:
+- Description: ${componentMetadata.description}
+- Type: ${componentMetadata.isAtomic ? 'Atomic (small, reusable)' : 'Complex (feature-rich)'}
+- Category: ${componentMetadata.category}
+- Props: ${propsInfo}
+
+REQUIREMENTS:
+1. Create TypeScript interface for props
+2. Use React.FC or function component
+3. ${componentMetadata.category === 'form' ? 'Include form validation, onChange handlers' : ''}
+4. ${componentMetadata.category === 'display' ? 'Focus on visual presentation' : ''}
+5. Use Tailwind CSS classes
+6. Use lucide-react icons if needed
+7. Add proper TypeScript types
+8. Include error states if applicable
+9. Make accessible (ARIA labels)
+10. Export as named export
+
+${componentMetadata.isAtomic ? `
+ATOMIC COMPONENT EXAMPLE:
+\`\`\`typescript
+interface ButtonProps {
+  children: React.ReactNode;
+  onClick?: () => void;
+  variant?: 'primary' | 'secondary';
+}
+
+export function Button({ children, onClick, variant = 'primary' }: ButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={\`px-4 py-2 rounded \${variant === 'primary' ? 'bg-blue-500 text-white' : 'bg-gray-200'}\`}
+    >
+      {children}
+    </button>
+  );
+}
+\`\`\`
+` : `
+COMPLEX COMPONENT EXAMPLE:
+\`\`\`typescript
+interface CardProps {
+  title: string;
+  description: string;
+  onAction?: () => void;
+}
+
+export function Card({ title, description, onAction }: CardProps) {
+  return (
+    <div className="p-6 bg-white rounded-lg shadow-md">
+      <h3 className="text-xl font-bold mb-2">{title}</h3>
+      <p className="text-gray-600 mb-4">{description}</p>
+      {onAction && <button onClick={onAction}>Action</button>}
+    </div>
+  );
+}
+\`\`\`
+`}
+
+Return ONLY the code.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash-exp",
+    contents: prompt
+  });
+
+  return stripFences(response.text);
+}
+
+// -----------------------------------------------------------------------------
+// PHASE 4.3: STATIC UTILITY FILE GENERATORS
+// -----------------------------------------------------------------------------
+
+function generateHook(hookPath) {
+  const hookName = hookPath.split('/').pop().replace('.ts', '');
+
+  if (hookName === 'useLocalStorage') {
+    return `import { useState } from 'react';
+
+export function useLocalStorage(key, initialValue) {
+  const [storedValue, setStoredValue] = useState(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(error);
+      return initialValue;
+    }
+  });
+
+  const setValue = (value) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return [storedValue, setValue];
+}`;
+  }
+
+  if (hookName === 'useDebounce') {
+    return `import { useState, useEffect } from 'react';
+
+export function useDebounce(value, delay = 500) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}`;
+  }
+
+  return `// Custom hook: ${hookName}\nexport function ${hookName}() {\n  return null;\n}`;
+}
+
+function generateUtils(utilPath) {
+  const fileName = utilPath.split('/').pop();
+
+  if (fileName === 'utils.ts') {
+    return `import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+/**
+ * Merge Tailwind CSS classes with clsx
+ */
+export function cn(...inputs) {
+  return twMerge(clsx(inputs));
+}
+
+/**
+ * Format date to readable string
+ */
+export function formatDate(date) {
+  return new Date(date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+}
+
+/**
+ * Truncate text with ellipsis
+ */
+export function truncate(text, length) {
+  if (text.length <= length) return text;
+  return text.slice(0, length) + '...';
+}
+
+/**
+ * Sleep utility for delays
+ */
+export function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}`;
+  }
+
+  if (fileName === 'constants.ts') {
+    return `export const APP_NAME = import.meta.env.VITE_APP_NAME || 'My App';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+export const APP_VERSION = '1.0.0';
+
+export const ROUTES = {
+  HOME: '/',
+  LOGIN: '/login',
+  DASHBOARD: '/dashboard',
+  SETTINGS: '/settings',
+};
+
+export const STORAGE_KEYS = {
+  TOKEN: 'auth_token',
+  USER: 'user_data',
+  THEME: 'theme',
+};`;
+  }
+
+  return `// Utility: ${fileName}`;
+}
+
+function generateStyles() {
+  return `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+  }
+  
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 dark:bg-gray-900;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-700 rounded-md;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400 dark:bg-gray-600;
+}`;
+}
+
+function generateEnvTemplate(architecture) {
+  let envVars = `# App Configuration
+VITE_APP_NAME="${architecture.projectName}"
+VITE_API_URL=http://localhost:3000
+
+`;
+
+  if (architecture.authentication.provider === 'Supabase') {
+    envVars += `# Supabase
+VITE_SUPABASE_URL=your-project-url.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+
+`;
+  } else if (architecture.authentication.provider === 'Firebase') {
+    envVars += `# Firebase
+VITE_FIREBASE_API_KEY=your-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+
+`;
+  } else if (architecture.authentication.provider === 'Clerk') {
+    envVars += `# Clerk
+VITE_CLERK_PUBLISHABLE_KEY=your-publishable-key
+
+`;
+  }
+
+  return envVars;
+}
+
+function generateReadme(architecture) {
+  return `# ${architecture.projectName}
+
+${architecture.description}
+
+## 🚀 Quick Start
+
+\`\`\`bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+\`\`\`
+
+## 📋 Features
+
+${architecture.pages.map(p => `- **${p.route}**: ${p.description}`).join('\n')}
+
+## 🏗️ Tech Stack
+
+- **Framework**: ${architecture.techStack.framework}
+- **Language**: ${architecture.techStack.language}
+- **Styling**: ${architecture.techStack.styling}
+- **State Management**: ${architecture.stateManagement.approach}
+- **Data Fetching**: ${architecture.performance.caching.strategy}
+- **Authentication**: ${architecture.authentication.provider}
+
+## 📁 Project Structure
+
+\`\`\`
+${architecture.folderStructure.map(f => `${f.name}/  # ${f.purpose || ''}`).join('\n')}
+\`\`\`
+
+## 🔐 Environment Variables
+
+Copy \`.env.example\` to \`.env\` and fill in your credentials:
+
+\`\`\`bash
+cp .env.example .env
+\`\`\`
+
+${architecture.authentication.provider !== 'None' ? `
+## Authentication Setup
+
+This project uses **${architecture.authentication.provider}** for authentication.
+
+${architecture.authentication.provider === 'Supabase' ? '1. Create a Supabase project\n2. Add your Supabase URL and anon key to .env\n3. Run database migrations (see below)' : ''}
+${architecture.authentication.provider === 'Firebase' ? '1. Create a Firebase project\n2. Enable Authentication in Firebase Console\n3. Add Firebase config to .env' : ''}
+` : ''}
+
+## 📊 Database Schema
+
+${architecture.databaseSchema.map(table => `
+### ${table.table}
+${table.columns.map(col => `- **${col.name}**: ${col.type}${col.isPrimary ? ' (Primary Key)' : ''}${col.isRequired ? ' (Required)' : ''}`).join('\n')}
+`).join('\n')}
+
+## 🛠️ Development
+
+- **Dev Server**: \`npm run dev\`
+- **Type Check**: \`npm run type-check\`
+- **Lint**: \`npm run lint\`
+- **Build**: \`npm run build\`
+- **Preview**: \`npm run preview\`
+
+## 📝 License
+
+MIT
+
+---
+
+Generated by IdeaToRepo 🚀
+`;
+}
+
+function generateMigration(architecture) {
+  const tables = architecture.databaseSchema || [];
+  const statements = tables.map(table => {
+    const columns = table.columns.map(col => {
+      const baseType = col.type || 'text';
+      const primary = col.isPrimary ? ' PRIMARY KEY' : '';
+      const required = col.isRequired ? ' NOT NULL' : '';
+      const defaultValue = col.defaultValue ? ` DEFAULT ${col.defaultValue}` : '';
+      return `  ${col.name} ${baseType}${primary}${required}${defaultValue}`;
+    }).join(',\n');
+    return `CREATE TABLE IF NOT EXISTS ${table.table} (\n${columns}\n);`;
+  });
+
+  return statements.join('\n\n');
+}
+
+// -----------------------------------------------------------------------------
 // TEMPLATES (Static Generators)
 // -----------------------------------------------------------------------------
 const generatePackageJson = (arch) => {
@@ -1473,6 +2419,81 @@ app.post('/api/generate-project', async (req, res) => {
     installCommand: 'npm install',
     startCommand: 'npm run dev'
   });
+});
+
+// Phase 4: Enhanced Project Generation (Tiered Batching)
+app.post('/api/generate-project-enhanced', async (req, res) => {
+  if (!ai) return res.status(503).json({ error: 'AI Service Unavailable' });
+
+  const { architecture } = req.body;
+
+  if (!architecture) {
+    return res.status(400).json({ error: 'Architecture required' });
+  }
+
+  log('INFO', 'Enhanced Project Generation Started', { project: architecture.projectName });
+
+  try {
+    const allFiles = [];
+    const generationLog = [];
+
+    // Step 1: Generate static config files (no AI needed)
+    log('INFO', 'Generating static configuration files...');
+    const staticFiles = generateStaticFiles(architecture);
+    allFiles.push(...staticFiles);
+    generationLog.push({ phase: 'Static Config', count: staticFiles.length, status: 'complete' });
+
+    const generatedPaths = new Set(staticFiles.map(file => file.path));
+
+    // Step 2: Prioritize and batch dynamic files
+    const prioritized = prioritizeFiles(architecture);
+
+    // Step 3: Generate in priority order with batching
+    for (const [tier, files] of Object.entries(prioritized)) {
+      if (files.length === 0) continue;
+
+      const pendingFiles = files.filter(file => !generatedPaths.has(file.name));
+      if (pendingFiles.length === 0) continue;
+
+      log('INFO', `Generating ${tier} tier (${pendingFiles.length} files)...`);
+
+      // Batch to prevent timeouts (6 files per batch)
+      const chunks = chunkArray(pendingFiles, 6);
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        log('INFO', `Processing ${tier} batch ${i + 1}/${chunks.length}...`);
+
+        // Generate chunk in parallel
+        const chunkResults = await Promise.all(
+          chunk.map(fileSpec => generateFile(fileSpec, architecture))
+        );
+
+        chunkResults.forEach(file => generatedPaths.add(file.path));
+        allFiles.push(...chunkResults);
+        generationLog.push({
+          phase: `${tier} batch ${i + 1}`,
+          count: chunkResults.length,
+          status: 'complete'
+        });
+      }
+    }
+
+    log('INFO', 'Project generation complete', { totalFiles: allFiles.length });
+
+    res.json({
+      name: architecture.projectName,
+      files: allFiles,
+      dependencies: extractDependencies(architecture),
+      installCommand: 'npm install',
+      startCommand: 'npm run dev',
+      generationLog
+    });
+
+  } catch (error) {
+    log('ERROR', 'Enhanced Project Generation Failed', { error: error.message });
+    res.status(500).json({ error: 'Project generation failed', details: error.message });
+  }
 });
 
 // Phase D: Generate Blueprint (Legacy MVP Plan)

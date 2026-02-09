@@ -12,6 +12,11 @@ interface BlueprintCardProps {
   scaffoldData: ScaffoldData | null;
   generatedProject: GeneratedProject | null;
   architecture: ProjectArchitecture | null;
+  generationProgress: {
+    phase: string;
+    current: number;
+    total: number;
+  };
   onGenerateScaffold: () => void;
 }
 
@@ -33,6 +38,7 @@ const BlueprintCard: React.FC<BlueprintCardProps> = ({
   scaffoldData,
   generatedProject,
   architecture,
+  generationProgress,
   onGenerateScaffold
 }) => {
   const [activeTab, setActiveTab] = useState<'architecture' | 'code'>('architecture');
@@ -93,6 +99,11 @@ const BlueprintCard: React.FC<BlueprintCardProps> = ({
     const fileEstimate = architecture 
         ? (architecture.components?.length || 0) + (architecture.pages?.length || 0) + 10 
         : 15;
+    const totalFiles = generationProgress.total || fileEstimate;
+    const currentFiles = generationProgress.current || 0;
+    const progressPercent = totalFiles > 0
+      ? Math.min(100, Math.round((currentFiles / totalFiles) * 100))
+      : 0;
 
     return (
       <div className="w-full max-w-4xl mx-auto p-1 bg-nightDark/50 rounded-xl border border-electricBlue/20 overflow-hidden relative">
@@ -105,16 +116,25 @@ const BlueprintCard: React.FC<BlueprintCardProps> = ({
              </div>
           </div>
           <h3 className="mt-8 text-2xl font-black text-white tracking-widest uppercase animate-pulse">
-             {isScaffolding ? `Synthesizing ${fileEstimate} files...` : 'Synthesizing Architecture'}
+             {isScaffolding ? (generationProgress.phase || 'Generating Files') : 'Synthesizing Architecture'}
           </h3>
           <div className="mt-4 flex flex-col gap-2 w-full max-w-md">
              <div className="h-2 bg-gray-800 rounded overflow-hidden">
-                <div className="h-full bg-electricBlue animate-progress-indeterminate"></div>
+                <div
+                  className="h-full bg-electricBlue transition-all"
+                  style={{ width: `${progressPercent}%` }}
+                ></div>
              </div>
-             <div className="flex justify-between text-[10px] font-mono text-electricBlue/60">
-                <span>Optimizing Stack...</span>
-                <span>Generating Schema...</span>
-             </div>
+             {isScaffolding ? (
+                <p className="text-xs text-gray-500 text-center">
+                  {currentFiles} / {totalFiles} files
+                </p>
+              ) : (
+                <div className="flex justify-between text-[10px] font-mono text-electricBlue/60">
+                  <span>Optimizing Stack...</span>
+                  <span>Generating Schema...</span>
+                </div>
+              )}
           </div>
         </div>
       </div>
