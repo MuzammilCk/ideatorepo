@@ -178,7 +178,7 @@ Generate 3-5 GitHub search queries to find relevant repositories:
 8. ❌ Do NOT add enterprise features to simple ideas
 
 ## OUTPUT FORMAT
-Return ONLY valid JSON matching the schema. No markdown, no explanations outside the JSON structure.`;
+Return ONLY valid JSON. CRITICAL: The searchStrategies field is REQUIRED and must be an array of 3-5 GitHub search query strings.`;
 }
 
 // -----------------------------------------------------------------------------
@@ -600,7 +600,7 @@ async function generateReactComponent(component, arch) {
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: prompt
     });
 
@@ -634,7 +634,7 @@ async function generateReactPage(page, arch) {
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: prompt
     });
 
@@ -665,7 +665,7 @@ async function generateAppRouter(pages, arch) {
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: prompt
     });
 
@@ -1018,7 +1018,7 @@ app.post('/api/intent-analysis', async (req, res) => {
     return res.json(cachedData);
   }
 
-  const model = "gemini-3-flash-preview";
+  const model = "gemini-2.0-flash";
 
   try {
     const response = await ai.models.generateContent({
@@ -1026,141 +1026,8 @@ app.post('/api/intent-analysis', async (req, res) => {
       contents: INTENT_ANALYSIS_PROMPT(idea),
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            // 1.1 Input Processing
-            entities: {
-              type: Type.OBJECT,
-              properties: {
-                projectName: { type: Type.STRING },
-                technologies: { type: Type.ARRAY, items: { type: Type.STRING } },
-                keyNouns: { type: Type.ARRAY, items: { type: Type.STRING } },
-                targetUsers: { type: Type.ARRAY, items: { type: Type.STRING } }
-              },
-              required: ["projectName", "technologies", "keyNouns", "targetUsers"]
-            },
-
-            // Project Classification
-            classification: {
-              type: Type.OBJECT,
-              properties: {
-                primaryType: {
-                  type: Type.STRING,
-                  enum: ["SaaS", "E-commerce", "Social Network", "Content Platform",
-                    "Marketplace", "Dashboard/Analytics", "Portfolio/Showcase",
-                    "Booking/Scheduling", "Educational", "Other"]
-                },
-                secondaryTypes: { type: Type.ARRAY, items: { type: Type.STRING } },
-                complexity: {
-                  type: Type.STRING,
-                  enum: ["Simple CRUD", "Moderate Multi-feature", "Complex Multi-tenant", "Enterprise"]
-                }
-              },
-              required: ["primaryType", "complexity"]
-            },
-
-            // Feature Prioritization
-            features: {
-              type: Type.OBJECT,
-              properties: {
-                mustHave: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      name: { type: Type.STRING },
-                      reason: { type: Type.STRING }
-                    }
-                  }
-                },
-                shouldHave: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      name: { type: Type.STRING },
-                      reason: { type: Type.STRING }
-                    }
-                  }
-                },
-                niceToHave: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      name: { type: Type.STRING },
-                      reason: { type: Type.STRING }
-                    }
-                  }
-                }
-              },
-              required: ["mustHave", "shouldHave", "niceToHave"]
-            },
-
-            // 1.2 Requirement Clarification
-            clarification: {
-              type: Type.OBJECT,
-              properties: {
-                targetAudience: {
-                  type: Type.STRING,
-                  enum: ["B2B", "B2C", "Internal Tool", "Developer Tool", "Mixed"]
-                },
-                expectedScale: {
-                  type: Type.STRING,
-                  enum: ["small", "medium", "large"]
-                },
-                monetization: {
-                  type: Type.STRING,
-                  enum: ["free", "subscription", "freemium", "one-time-purchase", "ads", "not-applicable"]
-                },
-                timeline: {
-                  type: Type.STRING,
-                  enum: ["weekend", "2-weeks", "month", "3-months"]
-                }
-              },
-              required: ["targetAudience", "expectedScale", "timeline"]
-            },
-
-            // 1.3 Feasibility Assessment
-            feasibility: {
-              type: Type.OBJECT,
-              properties: {
-                score: {
-                  type: Type.NUMBER,
-                  minimum: 0,
-                  maximum: 10
-                },
-                status: {
-                  type: Type.STRING,
-                  enum: ["Highly Feasible", "Feasible with Adjustments", "Ambitious but Possible", "Needs Scope Reduction"]
-                },
-                concerns: { type: Type.ARRAY, items: { type: Type.STRING } },
-                recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
-                scopeReduction: {
-                  type: Type.OBJECT,
-                  properties: {
-                    needed: { type: Type.BOOLEAN },
-                    suggestions: { type: Type.ARRAY, items: { type: Type.STRING } }
-                  }
-                }
-              },
-              required: ["score", "status", "concerns", "recommendations"]
-            },
-
-            // Enhanced Search Queries (Phase 2 Integration)
-            searchStrategies: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              minItems: 3,
-              maxItems: 5
-            }
-          },
-          required: ["entities", "classification", "features", "clarification", "feasibility", "searchStrategies"]
-        }
       }
     });
-
     const text = stripFences(response.text || "{}");
     const result = JSON.parse(text);
 
@@ -1168,7 +1035,14 @@ app.post('/api/intent-analysis', async (req, res) => {
     res.set('X-Cache', 'MISS');
     res.json(result);
 
+
   } catch (error) {
+    // Print to console for immediate visibility
+    console.error('\n❌ INTENT ANALYSIS ERROR:');
+    console.error('Message:', error.message);
+    console.error('Stack:', error.stack);
+    console.error('Full error:', error);
+
     log('ERROR', 'Intent Analysis Failed', {
       error: error.message,
       stack: error.stack,
@@ -1197,7 +1071,7 @@ app.post('/api/strategy', async (req, res) => {
     return res.json(cachedData);
   }
 
-  const model = "gemini-3-flash-preview";
+  const model = "gemini-2.0-flash";
 
   try {
     const response = await ai.models.generateContent({
@@ -1205,15 +1079,8 @@ app.post('/api/strategy', async (req, res) => {
       contents: `You are a GitHub Search Expert. For the project idea "${idea}", generate 3 distinct search queries. Return ONLY a raw JSON object: { "queries": ["q1", "q2", "q3"] }`,
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            queries: { type: Type.ARRAY, items: { type: Type.STRING } }
-          }
-        }
       }
     });
-
     const text = stripFences(response.text || "{}");
     const result = JSON.parse(text);
 
@@ -1263,7 +1130,7 @@ app.post('/api/deep-analysis', async (req, res) => {
     url: r.html_url
   }));
 
-  const model = "gemini-3-flash-preview";
+  const model = "gemini-2.0-flash";
 
   try {
     const response = await ai.models.generateContent({
@@ -1271,238 +1138,8 @@ app.post('/api/deep-analysis', async (req, res) => {
       contents: DEEP_PATTERN_ANALYSIS_PROMPT(userIdea, simplifiedRepos),
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            folderStructure: {
-              type: Type.OBJECT,
-              properties: {
-                commonPattern: {
-                  type: Type.STRING,
-                  enum: ["Standard React", "Feature-based", "Atomic Design", "Domain-driven", "Monorepo", "Mixed"]
-                },
-                recommendedStructure: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      folder: { type: Type.STRING },
-                      purpose: { type: Type.STRING },
-                      isRequired: { type: Type.BOOLEAN }
-                    }
-                  }
-                },
-                notes: { type: Type.STRING }
-              },
-              required: ["commonPattern", "recommendedStructure"]
-            },
-            dependencies: {
-              type: Type.OBJECT,
-              properties: {
-                core: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      package: { type: Type.STRING },
-                      purpose: { type: Type.STRING },
-                      frequency: {
-                        type: Type.STRING,
-                        enum: ["Always", "Very Common", "Common", "Occasional"]
-                      }
-                    }
-                  }
-                },
-                pairedPackages: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      packages: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      reason: { type: Type.STRING }
-                    }
-                  }
-                },
-                avoidPatterns: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING }
-                }
-              },
-              required: ["core", "pairedPackages"]
-            },
-            authentication: {
-              type: Type.OBJECT,
-              properties: {
-                mostCommonApproach: {
-                  type: Type.STRING,
-                  enum: ["JWT", "OAuth 2.0", "Session-based", "Firebase Auth", "Supabase Auth", "Auth0", "NextAuth", "Passport.js", "None"]
-                },
-                implementations: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      method: { type: Type.STRING },
-                      usedBy: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      pros: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      cons: { type: Type.ARRAY, items: { type: Type.STRING } }
-                    }
-                  }
-                },
-                recommendation: { type: Type.STRING }
-              },
-              required: ["mostCommonApproach", "recommendation"]
-            },
-            stateManagement: {
-              type: Type.OBJECT,
-              properties: {
-                dominantPattern: {
-                  type: Type.STRING,
-                  enum: ["Redux", "Context API", "Zustand", "Jotai", "Recoil", "MobX", "XState", "None/Props", "Mixed"]
-                },
-                usage: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      library: { type: Type.STRING },
-                      useCases: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      complexity: {
-                        type: Type.STRING,
-                        enum: ["Simple", "Moderate", "Complex"]
-                      }
-                    }
-                  }
-                },
-                bestFit: { type: Type.STRING }
-              },
-              required: ["dominantPattern", "bestFit"]
-            },
-            apiPatterns: {
-              type: Type.OBJECT,
-              properties: {
-                primaryType: {
-                  type: Type.STRING,
-                  enum: ["REST", "GraphQL", "tRPC", "gRPC", "WebSocket", "Mixed", "None"]
-                },
-                dataFetching: {
-                  type: Type.OBJECT,
-                  properties: {
-                    library: {
-                      type: Type.STRING,
-                      enum: ["React Query", "SWR", "RTK Query", "Apollo Client", "fetch", "axios", "None"]
-                    },
-                    patterns: { type: Type.ARRAY, items: { type: Type.STRING } }
-                  }
-                },
-                recommendation: { type: Type.STRING }
-              },
-              required: ["primaryType", "recommendation"]
-            },
-            architecture: {
-              type: Type.OBJECT,
-              properties: {
-                patterns: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      name: { type: Type.STRING },
-                      description: { type: Type.STRING },
-                      frequency: {
-                        type: Type.STRING,
-                        enum: ["Dominant", "Common", "Occasional", "Rare"]
-                      }
-                    }
-                  }
-                },
-                layering: {
-                  type: Type.OBJECT,
-                  properties: {
-                    hasLayeredArchitecture: { type: Type.BOOLEAN },
-                    layers: { type: Type.ARRAY, items: { type: Type.STRING } }
-                  }
-                }
-              },
-              required: ["patterns"]
-            },
-            security: {
-              type: Type.OBJECT,
-              properties: {
-                commonPractices: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      practice: { type: Type.STRING },
-                      implementation: { type: Type.STRING }
-                    }
-                  }
-                },
-                criticalMustHaves: { type: Type.ARRAY, items: { type: Type.STRING } },
-                observedWeaknesses: { type: Type.ARRAY, items: { type: Type.STRING } }
-              },
-              required: ["commonPractices", "criticalMustHaves"]
-            },
-            scalability: {
-              type: Type.OBJECT,
-              properties: {
-                strategies: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      strategy: { type: Type.STRING },
-                      usedBy: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      applicability: {
-                        type: Type.STRING,
-                        enum: ["MVP", "Growth Stage", "Enterprise", "All Stages"]
-                      }
-                    }
-                  }
-                },
-                recommendations: { type: Type.ARRAY, items: { type: Type.STRING } }
-              },
-              required: ["strategies", "recommendations"]
-            },
-            synthesis: {
-              type: Type.OBJECT,
-              properties: {
-                idealStack: {
-                  type: Type.OBJECT,
-                  properties: {
-                    frontend: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    backend: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    database: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    tooling: { type: Type.ARRAY, items: { type: Type.STRING } }
-                  }
-                },
-                keyTakeaways: { type: Type.ARRAY, items: { type: Type.STRING } },
-                antiPatterns: { type: Type.ARRAY, items: { type: Type.STRING } },
-                confidenceScore: {
-                  type: Type.NUMBER,
-                  minimum: 0,
-                  maximum: 10
-                }
-              },
-              required: ["idealStack", "keyTakeaways", "confidenceScore"]
-            }
-          },
-          required: [
-            "folderStructure",
-            "dependencies",
-            "authentication",
-            "stateManagement",
-            "apiPatterns",
-            "architecture",
-            "security",
-            "scalability",
-            "synthesis"
-          ]
-        }
       }
     });
-
     const text = stripFences(response.text || "{}");
     const result = JSON.parse(text);
 
@@ -1544,310 +1181,33 @@ app.post('/api/enhanced-architecture', async (req, res) => {
     return res.json(cachedData);
   }
 
-  const model = "gemini-3-flash-preview";
+  const model = "gemini-2.0-flash";
 
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: ENHANCED_ARCHITECTURE_PROMPT(idea, intentAnalysis, deepPatterns, basicAnalysis),
+      contents: ENHANCED_ARCHITECTURE_PROMPT(idea, intentAnalysis, deepPatterns, basicAnalysis) + `
+
+CRITICAL: Return ONLY valid JSON matching this EXACT structure (no markdown, no code fences). Do not include any explanations, only the JSON:
+{
+  "projectName": "string",
+  "description": "string",
+  "techStack": { "framework": "string", "language": "string", "styling": "string", "icons": "string", "stateManagement": "string", "dataFetching": "string", "routing": "string" },
+  "folderStructure": [{ "name": "string", "type": "folder|file", "purpose": "string", "children": [{ "name": "string", "type": "file" }] }],
+  "pages": [{ "name": "string", "route": "string", "description": "string", "imports": ["string"], "isProtected": boolean, "lazyLoad": boolean }],
+  "components": [{ "name": "string", "description": "string", "isAtomic": boolean, "category": "layout|form|display|navigation|feedback|utility", "props": [{"name": "string", "type": "string", "required": boolean}] }],
+  "databaseSchema": [{ "table": "string", "columns": [{"name": "string", "type": "string", "isPrimary": boolean, "isRequired": boolean}], "relationships": ["string"] }],
+  "apiEndpoints": [{ "path": "string", "method": "GET|POST|PUT|DELETE", "purpose": "string", "authentication": boolean, "requestSchema": {}, "responseSchema": {} }],
+  "stateManagement": { "approach": "string", "globalStores": [{"name": "string", "purpose": "string", "stateShape": "string"}], "localStateComponents": ["string"], "rationale": "string" },
+  "authentication": { "provider": "string", "flows": ["string"], "protectedRoutes": ["string"], "publicRoutes": ["string"] },
+  "performance": { "codeSplitting": boolean, "lazyLoading": {}, "caching": {}, "imageOptimization": boolean, "bundleOptimization": ["string"] },
+  "dataFlow": { "pattern": "string", "layers": {}, "communicationFlow": "string" },
+  "componentGraph": { "nodes": [{"id": "string", "type": "string"}], "edges": [{"from": "string", "to": "string", "relationship": "string"}] }
+}`,
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            projectName: { type: Type.STRING },
-            description: { type: Type.STRING },
-            techStack: {
-              type: Type.OBJECT,
-              properties: {
-                framework: { type: Type.STRING },
-                language: { type: Type.STRING },
-                styling: { type: Type.STRING },
-                icons: { type: Type.STRING },
-                stateManagement: { type: Type.STRING },
-                dataFetching: { type: Type.STRING },
-                routing: { type: Type.STRING }
-              },
-              required: ["framework", "language", "styling"]
-            },
-            folderStructure: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  type: { type: Type.STRING, enum: ["file", "folder"] },
-                  purpose: { type: Type.STRING },
-                  children: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        name: { type: Type.STRING },
-                        type: { type: Type.STRING }
-                      }
-                    }
-                  }
-                },
-                required: ["name", "type"]
-              }
-            },
-            pages: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  route: { type: Type.STRING },
-                  description: { type: Type.STRING },
-                  imports: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  isProtected: { type: Type.BOOLEAN },
-                  lazyLoad: { type: Type.BOOLEAN }
-                },
-                required: ["name", "route", "description"]
-              }
-            },
-            components: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  description: { type: Type.STRING },
-                  isAtomic: { type: Type.BOOLEAN },
-                  category: {
-                    type: Type.STRING,
-                    enum: ["layout", "form", "display", "navigation", "feedback", "utility"]
-                  },
-                  props: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        name: { type: Type.STRING },
-                        type: { type: Type.STRING },
-                        required: { type: Type.BOOLEAN }
-                      }
-                    }
-                  }
-                },
-                required: ["name", "description", "isAtomic"]
-              }
-            },
-            databaseSchema: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  table: { type: Type.STRING },
-                  columns: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        name: { type: Type.STRING },
-                        type: { type: Type.STRING },
-                        isPrimary: { type: Type.BOOLEAN },
-                        isRequired: { type: Type.BOOLEAN },
-                        defaultValue: { type: Type.STRING }
-                      }
-                    }
-                  },
-                  relationships: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        type: { type: Type.STRING, enum: ["one-to-many", "many-to-one", "many-to-many"] },
-                        table: { type: Type.STRING },
-                        foreignKey: { type: Type.STRING }
-                      }
-                    }
-                  }
-                },
-                required: ["table", "columns"]
-              }
-            },
-            apiEndpoints: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  path: { type: Type.STRING },
-                  method: { type: Type.STRING, enum: ["GET", "POST", "PUT", "PATCH", "DELETE"] },
-                  purpose: { type: Type.STRING },
-                  authentication: { type: Type.BOOLEAN },
-                  requestSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                      body: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      params: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      query: { type: Type.ARRAY, items: { type: Type.STRING } }
-                    }
-                  },
-                  responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                      success: { type: Type.STRING },
-                      error: { type: Type.STRING }
-                    }
-                  }
-                },
-                required: ["path", "method", "purpose", "authentication"]
-              }
-            },
-            stateManagement: {
-              type: Type.OBJECT,
-              properties: {
-                approach: {
-                  type: Type.STRING,
-                  enum: ["Context API", "Redux Toolkit", "Zustand", "Jotai", "Recoil", "Mixed"]
-                },
-                globalStores: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      name: { type: Type.STRING },
-                      purpose: { type: Type.STRING },
-                      stateShape: { type: Type.ARRAY, items: { type: Type.STRING } }
-                    }
-                  }
-                },
-                localStateComponents: { type: Type.ARRAY, items: { type: Type.STRING } },
-                rationale: { type: Type.STRING }
-              },
-              required: ["approach", "globalStores", "rationale"]
-            },
-            authentication: {
-              type: Type.OBJECT,
-              properties: {
-                provider: {
-                  type: Type.STRING,
-                  enum: ["Supabase", "Firebase", "Auth0", "NextAuth", "Custom JWT", "Clerk", "None"]
-                },
-                flows: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.STRING,
-                    enum: ["email-password", "oauth-google", "oauth-github", "magic-link", "phone", "password-reset"]
-                  }
-                },
-                protectedRoutes: { type: Type.ARRAY, items: { type: Type.STRING } },
-                publicRoutes: { type: Type.ARRAY, items: { type: Type.STRING } },
-                tokenStorage: {
-                  type: Type.STRING,
-                  enum: ["httpOnly-cookie", "localStorage", "sessionStorage", "memory"]
-                },
-                sessionDuration: { type: Type.STRING }
-              },
-              required: ["provider", "flows", "protectedRoutes", "tokenStorage"]
-            },
-            dataFlow: {
-              type: Type.OBJECT,
-              properties: {
-                pattern: {
-                  type: Type.STRING,
-                  enum: ["Unidirectional", "Bidirectional", "Event-driven"]
-                },
-                layers: {
-                  type: Type.OBJECT,
-                  properties: {
-                    presentation: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    business: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    data: { type: Type.ARRAY, items: { type: Type.STRING } }
-                  },
-                  required: ["presentation", "business", "data"]
-                },
-                communicationFlow: { type: Type.STRING }
-              },
-              required: ["pattern", "layers", "communicationFlow"]
-            },
-            performance: {
-              type: Type.OBJECT,
-              properties: {
-                codeSplitting: { type: Type.BOOLEAN },
-                lazyLoading: {
-                  type: Type.OBJECT,
-                  properties: {
-                    routes: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    components: { type: Type.ARRAY, items: { type: Type.STRING } }
-                  }
-                },
-                caching: {
-                  type: Type.OBJECT,
-                  properties: {
-                    strategy: {
-                      type: Type.STRING,
-                      enum: ["React Query", "SWR", "RTK Query", "Manual", "None"]
-                    },
-                    cachedEndpoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    staleTime: { type: Type.STRING },
-                    cacheTime: { type: Type.STRING }
-                  },
-                  required: ["strategy"]
-                },
-                imageOptimization: { type: Type.BOOLEAN },
-                bundleOptimization: { type: Type.ARRAY, items: { type: Type.STRING } }
-              },
-              required: ["codeSplitting", "caching"]
-            },
-            componentGraph: {
-              type: Type.OBJECT,
-              properties: {
-                nodes: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      id: { type: Type.STRING },
-                      name: { type: Type.STRING },
-                      type: {
-                        type: Type.STRING,
-                        enum: ["page", "layout", "component", "utility", "hook", "context"]
-                      }
-                    },
-                    required: ["id", "name", "type"]
-                  }
-                },
-                edges: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      from: { type: Type.STRING },
-                      to: { type: Type.STRING },
-                      relationship: {
-                        type: Type.STRING,
-                        enum: ["imports", "renders", "wraps", "consumes", "provides"]
-                      }
-                    },
-                    required: ["from", "to", "relationship"]
-                  }
-                }
-              },
-              required: ["nodes", "edges"]
-            }
-          },
-          required: [
-            "projectName",
-            "description",
-            "techStack",
-            "folderStructure",
-            "pages",
-            "components",
-            "databaseSchema",
-            "apiEndpoints",
-            "stateManagement",
-            "authentication",
-            "dataFlow",
-            "performance",
-            "componentGraph"
-          ]
-        }
       }
     });
-
     const text = stripFences(response.text || "{}");
     const result = JSON.parse(text);
 
@@ -1920,21 +1280,12 @@ app.post('/api/analyze', async (req, res) => {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: `Analyze these repositories in the context of: "${idea}". Return JSON: { "recommendedStack": [], "coreFeatures": [], "architecturalNotes": "" }. Repos: ${JSON.stringify(repos)}`,
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            recommendedStack: { type: Type.ARRAY, items: { type: Type.STRING } },
-            coreFeatures: { type: Type.ARRAY, items: { type: Type.STRING } },
-            architecturalNotes: { type: Type.STRING }
-          }
-        }
       }
     });
-
     const text = stripFences(response.text || "{}");
     res.json(JSON.parse(text));
   } catch (error) {
@@ -1953,7 +1304,7 @@ app.post('/api/blueprint-v2', async (req, res) => {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: `Design a complete project architecture for: "${idea}".
       Analysis Context: ${JSON.stringify(analysis || {})}
       
@@ -1967,79 +1318,8 @@ app.post('/api/blueprint-v2', async (req, res) => {
       Return ONLY valid JSON matching the ProjectArchitecture interface.`,
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            projectName: { type: Type.STRING },
-            description: { type: Type.STRING },
-            techStack: {
-              type: Type.OBJECT,
-              properties: {
-                framework: { type: Type.STRING },
-                language: { type: Type.STRING },
-                styling: { type: Type.STRING },
-                icons: { type: Type.STRING }
-              }
-            },
-            folderStructure: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  type: { type: Type.STRING, enum: ["file", "folder"] },
-                  children: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING } } } } // Simplified recursion for schema
-                }
-              }
-            },
-            pages: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  route: { type: Type.STRING },
-                  description: { type: Type.STRING },
-                  imports: { type: Type.ARRAY, items: { type: Type.STRING } }
-                }
-              }
-            },
-            components: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  description: { type: Type.STRING },
-                  isAtomic: { type: Type.BOOLEAN }
-                }
-              }
-            },
-            databaseSchema: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  table: { type: Type.STRING },
-                  columns: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        name: { type: Type.STRING },
-                        type: { type: Type.STRING },
-                        isPrimary: { type: Type.BOOLEAN }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
       }
     });
-
     const text = stripFences(response.text || "{}");
     const architecture = JSON.parse(text);
 
@@ -2146,7 +1426,7 @@ app.post('/api/blueprint', async (req, res) => {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: `User Idea: "${idea}". Analysis: ${JSON.stringify(analysis)}. Create MVP.md content. Tone: Technical. Return ONLY markdown string.`
     });
 
@@ -2168,22 +1448,13 @@ app.post('/api/scaffold', async (req, res) => {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: `Generate entry file and package.json from blueprint. Return JSON: { "entryFile": "App.tsx", "entryCode": "...", "packageJson": "..." }`,
       config: {
         systemInstruction: 'Do not generate copyright-infringing code.',
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            entryFile: { type: Type.STRING },
-            entryCode: { type: Type.STRING },
-            packageJson: { type: Type.STRING }
-          }
-        }
       }
     });
-
     const text = stripFences(response.text || "{}");
     let data = JSON.parse(text);
 
@@ -2198,6 +1469,125 @@ app.post('/api/scaffold', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// PHASE 3: ENHANCED ARCHITECTURE SYNTHESIS
+// -----------------------------------------------------------------------------
+
+app.post('/api/enhanced-architecture', async (req, res) => {
+  if (!ai) return res.status(503).json({ error: 'AI Service Unavailable' });
+
+  const { idea, intentAnalysis, deepPatterns, basicAnalysis } = req.body;
+
+  if (!idea) {
+    return res.status(400).json({ error: 'User idea required' });
+  }
+
+  log('INFO', 'Enhanced Architecture Request', { idea });
+
+  // Create comprehensive cache key
+  const contextHash = JSON.stringify({
+    idea,
+    intent: intentAnalysis?.classification?.primaryType,
+    patterns: deepPatterns?.synthesis?.idealStack
+  });
+  const cacheKey = `ENHANCED_ARCH:${Buffer.from(contextHash).toString('base64').slice(0, 50)}`;
+  const cachedData = getFromCache(cacheKey);
+  if (cachedData) {
+    res.set('X-Cache', 'HIT');
+    return res.json(cachedData);
+  }
+
+  const model = "gemini-2.0-flash";
+
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: ENHANCED_ARCHITECTURE_PROMPT(idea, intentAnalysis, deepPatterns, basicAnalysis) + `
+
+CRITICAL: Return ONLY valid JSON matching this EXACT structure (no markdown, no code fences). Do not include any explanations, only the JSON:
+{
+  "projectName": "string",
+  "description": "string",
+  "techStack": {
+    "framework": "string",
+    "language": "string",
+    "styling": "string",
+    "icons": "string",
+    "stateManagement": "string",
+    "dataFetching": "string",
+    "routing": "string"
+  },
+  "folderStructure": [
+    {
+      "name": "string",
+      "type": "folder|file",
+      "purpose": "string",
+      "children": [
+        { "name": "string", "type": "file" }
+      ]
+    }
+  ],
+  "pages": [
+    { "name": "string", "route": "string", "description": "string", "imports": ["string"], "isProtected": boolean, "lazyLoad": boolean }
+  ],
+  "components": [
+    { "name": "string", "description": "string", "isAtomic": boolean, "category": "layout|form|display|navigation|feedback|utility", "props": [{"name": "string", "type": "string", "required": boolean}] }
+  ],
+  "databaseSchema": [
+    { "table": "string", "columns": [{"name": "string", "type": "string", "isPrimary": boolean, "isRequired": boolean}], "relationships": ["string"] }
+  ],
+  "apiEndpoints": [
+    { "path": "string", "method": "GET|POST|PUT|DELETE", "purpose": "string", "authentication": boolean, "requestSchema": {}, "responseSchema": {} }
+  ],
+  "stateManagement": {
+    "approach": "string",
+    "globalStores": [{"name": "string", "purpose": "string", "stateShape": "string"}],
+    "localStateComponents": ["string"],
+    "rationale": "string"
+  },
+  "authentication": {
+    "provider": "string",
+    "flows": ["string"],
+    "protectedRoutes": ["string"],
+    "publicRoutes": ["string"]
+  },
+  "performance": {
+    "codeSplitting": boolean,
+    "lazyLoading": {},
+    "caching": {},
+    "imageOptimization": boolean,
+    "bundleOptimization": ["string"]
+  },
+  "dataFlow": {
+    "pattern": "string",
+    "layers": {},
+    "communicationFlow": "string"
+  },
+  "componentGraph": {
+    "nodes": [{"id": "string", "type": "string"}],
+    "edges": [{"from": "string", "to": "string", "relationship": "string"}]
+  }
+}`,
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    const text = stripFences(response.text || "{}");
+    const result = JSON.parse(text);
+
+    setInCache(cacheKey, result);
+    res.set('X-Cache', 'MISS');
+    res.json(result);
+
+  } catch (error) {
+    log('ERROR', 'Enhanced Architecture Failed', { error: error.message });
+    console.error('Enhanced Architecture Error:', error);
+    res.status(500).json({ error: 'AI Generation Failed' });
+  }
+});
+
 // SERVER INITIALIZATION
 // -----------------------------------------------------------------------------
 app.listen(PORT, () => {
